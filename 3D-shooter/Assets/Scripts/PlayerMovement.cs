@@ -1,38 +1,58 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-[RequireComponent(typeof(CharacterController))]
-public class PlayerMovement : MonoBehaviour {
-    [Header("Настройки перемещения")]
-    [SerializeField] private float moveSpeed = 5.0f;
+public class PlayerMovement : MonoBehaviour 
+{
+    [Header("Movement Settings")]
+    [SerializeField] private float _walkSpeed = 5.0f;
+    [SerializeField] private float _mouseSensitivity = 2.0f;
+    [SerializeField] private float _gravity = -9.81f; // Сила, которая будет тянуть нас вниз
 
-    [Header("Настройки обзора")]
-    [SerializeField] private float mouseSensitivity = 2.0f;
+    [Header("Refs")]
+    [SerializeField] private PlayerInput _playerInput;
+    [SerializeField] private CharacterController _characterController;
+    [SerializeField] private Transform _cameraTransform; 
 
-    private CharacterController _characterController;
+    private float _verticalRotation = 0f; 
+    private float _verticalVelocity = 0f; // Переменная для хранения текущей скорости падения
 
-    private void Start() {
-        _characterController = GetComponent<CharacterController>();
-
-        // Блокируем курсор мыши в центре экрана, чтобы он не мешал во время игры
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+    private void Awake() 
+    {
+        if (_characterController == null) _characterController = GetComponent<CharacterController>();
+        if (_playerInput == null) _playerInput = GetComponent<PlayerInput>();
+        if (_cameraTransform == null) _cameraTransform = GetComponentInChildren<Camera>()?.transform;
     }
 
-    private void Update() {
-        // 1. Поворот персонажа мышью влево/вправо (по горизонтали)
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        transform.Rotate(Vector3.up * mouseX);
+    private void Update() 
+    {
+        // 1. Поворот ТЕЛА персонажа влево/вправо
+        float horizontalRotation = _playerInput.MouseX * _mouseSensitivity;
+        transform.Rotate(Vector3.up * horizontalRotation);
 
-        // 2. Перемещение персонажа (клавиши WASD)
-        float moveX = Input.GetAxis("Horizontal");
-        float moveZ = Input.GetAxis("Vertical");
+        // 2. Наклон КАМЕРЫ вверх/вниз
+        _verticalRotation -= _playerInput.MouseY * _mouseSensitivity;
+        _verticalRotation = Mathf.Clamp(_verticalRotation, -85f, 85f); 
+        _cameraTransform.localRotation = Quaternion.Euler(_verticalRotation, 0f, 0f);
 
-        // Рассчитываем направление движения относительно взгляда персонажа
-        Vector3 moveDirection = transform.right * moveX + transform.forward * moveZ;
+        // 3. Расчет направления движения по горизонтали (WASD)
+        Vector3 moveDirection = transform.right * _playerInput.MoveX + transform.forward * _playerInput.MoveZ;
+        Vector3 finalMovement = moveDirection * _walkSpeed;
 
-        // Двигаем игрока через компонент CharacterController
-        _characterController.Move(moveDirection * moveSpeed * Time.deltaTime);
+        // 4. ЛОГИКА ГРАВИТАЦИИ (Прижим к земле)
+        if (_characterController.isGrounded)
+        {
+            // Если мы твердо стоим на земле, слегка прижимаем игрока вниз (-2), чтобы физика не теряла пол
+            _verticalVelocity = -2f; 
+        }
+        else
+        {
+            // Если мы оказались в воздухе (соскочили с коробки), плавно увеличиваем скорость падения
+            _verticalVelocity += _gravity * Time.deltaTime;
+        }
+
+        // Добавляем вертикальную скорость к общему движению
+        finalMovement.y = _verticalVelocity;
+
+        // 5. Финальное перемещение персонажа
+        _characterController.Move(finalMovement * Time.deltaTime);
     }
 }

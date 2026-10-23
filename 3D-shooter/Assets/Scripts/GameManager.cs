@@ -3,48 +3,45 @@ using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour {
     [Header("UI")]
-    [SerializeField] private GameObject pauseMenu;
+    [SerializeField] private GameObject _pauseMenu;
 
-    [Header("Player")]
-    [SerializeField] private PlayerMovement playerMovement;
+    [Header("Player Refs")]
+    [SerializeField] private PlayerMovement _playerMovement;
+    [SerializeField] private PlayerInput _playerInput; // Чтобы мышка не дергалась в паузе
 
     private bool _isPaused = false;
 
     private void Start() {
-        pauseMenu.SetActive(false);
+        _pauseMenu.SetActive(false);
     }
 
     private void Update() {
         if (Input.GetKeyDown(KeyCode.Escape)) {
-            if (_isPaused) {
-                Resume();
-            } else {
-                Pause();
-            }
+            if (_isPaused) Resume(); else Pause();
         }
     }
 
     public void Resume() {
-        pauseMenu.SetActive(false);
+        _pauseMenu.SetActive(false);
         _isPaused = false;
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        playerMovement.enabled = true;
-
+        _playerMovement.enabled = true;
+        _playerInput.enabled = true;
         Time.timeScale = 1f;
     }
 
-    public void Pause() {
-        pauseMenu.SetActive(true);
+    public void Pause()  {
+        _pauseMenu.SetActive(true);
         _isPaused = true;
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        playerMovement.enabled = false;
-
+        _playerMovement.enabled = false;
+        _playerInput.enabled = false;
         Time.timeScale = 0f;
     }
 
@@ -59,5 +56,22 @@ public class GameManager : MonoBehaviour {
     public void ExitToMainMenu() {
         Time.timeScale = 1f;
         SceneManager.LoadScene(0);
+    }
+
+     public void GameOver() 
+    {
+        // Используем логику паузы: включаем меню (можно использовать то же меню паузы как экран Game Over)
+        _pauseMenu.SetActive(true); 
+
+        // Освобождаем мышку
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // Отключаем управление и останавливаем время
+        _playerMovement.enabled = false;
+        _playerInput.enabled = false;
+        Time.timeScale = 0f;
+
+        Debug.Log("[ИГРА ОКOНЧЕНА] Вы погибли!");
     }
 }
