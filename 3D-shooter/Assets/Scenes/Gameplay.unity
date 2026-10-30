@@ -3283,7 +3283,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 79d6ca4e404a3ae48b2573e5e28c0abe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _killsToWin: 50
+  _killsToWin: 25
   _blueScoreText: {fileID: 232792110}
   _redScoreText: {fileID: 298097426}
 --- !u!114 &361538727
@@ -12919,7 +12919,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 50
+  m_text: 25
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

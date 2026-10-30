@@ -1,10 +1,9 @@
 ﻿using UnityEngine;
 
-public class PlayerMovement : MonoBehaviour
-{
+public class PlayerMovement : MonoBehaviour {
     [Header("Покачивание камеры")]
     [SerializeField] private float _bobFrequency = 5.0f; // Скорость шагов
-    [SerializeField] private float _bobAmount = 0.05f;   // Высота покачивания
+    [SerializeField] private float _bobAmount = 0.05f; // Высота покачивания
     private float _bobTimer = 0f;
     private float _defaultCameraY = 0f;
 
@@ -21,17 +20,15 @@ public class PlayerMovement : MonoBehaviour
     private float _verticalRotation = 0f;
     private float _verticalVelocity = 0f; // Переменная для хранения текущей скорости падения
 
-    private void Awake()
-    {
+    private void Awake() {
         if (_characterController == null) _characterController = GetComponent<CharacterController>();
         if (_playerInput == null) _playerInput = GetComponent<PlayerInput>();
         if (_cameraTransform == null) _cameraTransform = GetComponentInChildren<Camera>().transform;
-        
+
         if (_cameraTransform != null) _defaultCameraY = _cameraTransform.localPosition.y;
     }
 
-    private void Update()
-    {
+    private void Update() {
         if (Time.timeScale == 0f) return; // Защита от движения в паузе
 
         // 1. Поворот тела персонажа влево/вправо
@@ -40,43 +37,37 @@ public class PlayerMovement : MonoBehaviour
 
         // 2. Наклон камеры вверх/вниз
         _verticalRotation -= _playerInput.MouseY * _mouseSensitivity;
-        _verticalRotation = Mathf.Clamp(_verticalRotation, -85f, 85f);
+        _verticalRotation = Mathf.Clamp(_verticalRotation, -85f, 85f); // Ограничиваем угол обзора, чтобы не сломать шею
         _cameraTransform.localRotation = Quaternion.Euler(_verticalRotation, 0f, 0f);
 
         // 3. Расчет направления движения по горизонтали (WASD)
         Vector3 moveDirection = transform.right * _playerInput.MoveX + transform.forward * _playerInput.MoveZ;
         Vector3 finalMovement = moveDirection * _walkSpeed;
 
-        // 4. ЛОГИКА ГРАВИТАЦИИ (Прижим к земле)
-        if (_characterController.isGrounded)
-        {
-            // Если мы твердо стоим на земле, слегка прижимаем игрока вниз (-2), чтобы физика не теряла пол
+        // 4. Логика гравитации (прижим к земле)
+        if (_characterController.isGrounded) {
             _verticalVelocity = -2f;
         }
-        else
-        {
+        else {
             // Если мы оказались в воздухе, плавно увеличиваем скорость падения
             _verticalVelocity += _gravity * Time.deltaTime;
         }
 
-        // Добавляем вертикальную скорость к общее движению
+        // Добавляем вертикальную скорость к общему движению
         finalMovement.y = _verticalVelocity;
 
         // Покачивание камеры по синусоиде
         Vector3 speedXZ = new Vector3(finalMovement.x, 0, finalMovement.z);
-        if (_characterController.isGrounded && speedXZ.magnitude > 0.1f)
-        {
-            // Игрок идет — двигаем камеру по синусоиде
+        if (_characterController.isGrounded && speedXZ.magnitude > 0.1f) {
             _bobTimer += Time.deltaTime * _bobFrequency;
             _cameraTransform.localPosition = new Vector3(
                 _cameraTransform.localPosition.x,
-                _defaultCameraY + Mathf.Sin(_bobTimer) * _bobAmount,
+                _defaultCameraY + Mathf.Sin(_bobTimer) * _bobAmount, // Синус создает плавную волну
                 _cameraTransform.localPosition.z
             );
         }
-        else
-        {
-            // Игрок стоит — плавно возвращаем камеру в центр
+        else {
+            // Игрок стоит - плавно возвращаем камеру в центр через Lerp
             _bobTimer = 0f;
             _cameraTransform.localPosition = new Vector3(
                 _cameraTransform.localPosition.x,
@@ -84,8 +75,7 @@ public class PlayerMovement : MonoBehaviour
                 _cameraTransform.localPosition.z
             );
         }
-
         // 5. Финальное перемещение персонажа
-        _characterController.Move(finalMovement * Time.deltaTime);
+        _characterController.Move(finalMovement * Time.deltaTime); // Двигаем контроллер
     }
 }

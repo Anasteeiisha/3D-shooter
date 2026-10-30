@@ -1,98 +1,91 @@
+using System.Collections;
 using UnityEngine;
-using TMPro; 
-using UnityEngine.SceneManagement; 
+using TMPro;
+using UnityEngine.SceneManagement;
 
-public class GameManager : MonoBehaviour
-{
+public class GameManager : MonoBehaviour {
     [Header("UI Конца Игры")]
-    [SerializeField] private GameObject _endGameWindow; 
-    [SerializeField] private TextMeshProUGUI _endGameText; 
+    [SerializeField] private GameObject _endGameWindow; // Окно результатов
+    [SerializeField] private TextMeshProUGUI _endGameText; // Текст победы
 
     [Header("UI Паузы матча")]
-    [SerializeField] private GameObject _pauseMenuPanel; // Сюда перетащим скрытое меню PauseMenu из StaticCanvas
+    [SerializeField] private GameObject _pauseMenuPanel; // Скрытое меню паузы
 
     private bool _isPaused = false;
-    private bool _matchEnded = false; 
+    private bool _matchEnded = false;
 
-    private void Awake()
-    {
-        Time.timeScale = 1f;
+    private void Awake() {
+        Time.timeScale = 1f; // В начале время идет нормально
         if (_endGameWindow != null) _endGameWindow.SetActive(false);
-        
-        // При старте игры сразу принудительно прячем меню паузы и блокируем мышь для боя
+
+        // При старте принудительно прячем меню пауз и блокируем мышь
         ResumeGame();
     }
 
-    private void Update()
-    {
-        if (_matchEnded) return;
+    private void Update() {
+        if (_matchEnded) return; // Если матч кончился, Esc не работает
 
-        // Отслеживаем Escape
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (_isPaused) ResumeGame();
-            else PauseGame();
+        // Отслеживаем нажатие Escape
+        if (Input.GetKeyDown(KeyCode.Escape)) {
+            if (_isPaused) ResumeGame(); // Если на паузе - продолжаем
+            else PauseGame(); // Если нет - ставим на паузу
         }
     }
 
-    public void PauseGame()
-    {
+    // Ставит игру на паузу: показывает меню, останавливает время, освобождает курсор
+    public void PauseGame() {
         _isPaused = true;
-        if (_pauseMenuPanel != null) _pauseMenuPanel.SetActive(true); 
+        if (_pauseMenuPanel != null) _pauseMenuPanel.SetActive(true);
 
-        Time.timeScale = 0f; // Замораживаем ботов
+        Time.timeScale = 0f; // Замораживаем время в игре
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
-    public void ResumeGame()
-    {
+    // Снимает паузу: скрывает меню, запускает время, прячет курсор
+    public void ResumeGame() {
         _isPaused = false;
-        if (_pauseMenuPanel != null) _pauseMenuPanel.SetActive(false); 
+        if (_pauseMenuPanel != null) _pauseMenuPanel.SetActive(false);
 
-        Time.timeScale = 1f; // Размораживаем ботов
+        Time.timeScale = 1f; // Возобновляем время
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
 
-    public void ShowMatchResult(bool isBlueWin)
-    {
-        _matchEnded = true; 
+    // Вызывается из MatchManager при победе одной из команд
+    public void ShowMatchResult(bool isBlueWin) {
+        _matchEnded = true; // Блокируем паузу
+
         if (_endGameWindow == null || _endGameText == null) return;
+        _endGameWindow.SetActive(true); // Показываем окно конца
 
-        _endGameWindow.SetActive(true);
-
-        if (isBlueWin)
-        {
+        // Меняем текст и цвет в зависимости от победителя
+        if (isBlueWin) {
             _endGameText.text = "ПОБЕДА СИНИХ!";
             _endGameText.color = Color.cyan;
         }
-        else
-        {
+        else {
             _endGameText.text = "ПОБЕДА КРАСНЫХ!";
             _endGameText.color = Color.red;
         }
 
-        Time.timeScale = 0f;
+        Time.timeScale = 0f; // Останавливаем игру
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
-    public void RestartGameButton()
-    {
-        Time.timeScale = 1f;
+    // Перезапуск текущего матча (кнопка "Заново")
+    public void RestartGameButton() {
+        Time.timeScale = 1f; // Возвращаем время перед загрузкой!
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    // ВОТ ЭТОТ НОВЫЙ МЕТОД ДЛЯ КНОПКИ ВЫХОДА:
-    public void GoToMainMenuButton()
-    {
-        // КРИТИЧЕСКИ ВАЖНО: Возвращаем время в нормальный режим (1) перед выходом!
-        // Если этого не сделать, главное меню тоже застынет в паузе и там ничего нельзя будет нажать.
-        Time.timeScale = 1f;
+    // Выход в главное меню (кнопка "Выйти")
+    public void GoToMainMenuButton() {
+        // время 1, иначе меню тоже застынет
+        Time.timeScale = 1f; 
         
-        // Загружаем сцену главного меню по её точному имени
-        // Убедись, что твоя сцена в папке Scenes называется именно "MainMenu" (или поменяй имя в кавычках ниже)
+        // Загружаем сцену
         SceneManager.LoadScene("MainMenu");
     }
 }
