@@ -1,40 +1,113 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class EnemySpawner : MonoBehaviour
 {
-    [Header("Настройки спавна")]
+    public static EnemySpawner Instance;
+
+    [Header("Префабы ботов")]
     [SerializeField] private GameObject _enemyPrefab; 
-    [SerializeField] private float _spawnInterval = 2.0f; 
-    [SerializeField] private Transform[] _spawnPoints;   
-    [SerializeField] private int _maxEnemies = 6; 
+    [SerializeField] private GameObject _allyPrefab;  
 
-    private float _nextSpawnTime;
+    [Header("Точки появления команд")]
+    [SerializeField] private Transform[] _enemySpawnPoints; 
+    [SerializeField] private Transform[] _allySpawnPoints;  
 
-    private void Update()
+    [Header("Настройки")]
+    [SerializeField] private float _respawnDelay = 4.0f; 
+
+    private void Awake()
     {
-        if (Time.time >= _nextSpawnTime)
-        {
-            // НАДЕЖНЫЙ ВАРИАНТ: считаем врагов на сцене по наличию скрипта здоровья здоровья
-            int currentEnemyCount = FindObjectsByType<EnemyHealth>(FindObjectsSortMode.None).Length;
+        Instance = this;
+    }
 
-            // Если живых капсул меньше 6, продолжаем спавнить
-            if (currentEnemyCount < _maxEnemies)
-            {
-                SpawnEnemy();
-            }
-            
-            _nextSpawnTime = Time.time + _spawnInterval;
+    private void Start()
+    {
+        // Создаем на старте 5 врагов и 4 союзников с фиксированными именами
+        for (int i = 1; i <= 5; i++)
+        {
+            SpawnNewEnemyDirectly($"Враг {i}");
+        }
+
+        for (int i = 1; i <= 4; i++)
+        {
+            SpawnNewAllyDirectly($"Союзник {i}");
         }
     }
 
-    private void SpawnEnemy()
+    public void SpawnEnemy(string oldName)
     {
-        if (_enemyPrefab == null || _spawnPoints.Length == 0) return;
+        StartCoroutine(RespawnEnemyCoroutine(oldName));
+    }
 
-        int randomIndex = Random.Range(0, _spawnPoints.Length);
-        Transform selectedPoint = _spawnPoints[randomIndex];
+    public void SpawnAlly(string oldName)
+    {
+        StartCoroutine(RespawnAllyCoroutine(oldName));
+    }
 
-        Instantiate(_enemyPrefab, selectedPoint.position, selectedPoint.rotation);
-        Debug.Log("[Спавнер] На карту выпущен новый враг!");
+    private IEnumerator RespawnEnemyCoroutine(string oldName)
+    {
+        yield return new WaitForSeconds(_respawnDelay);
+        SpawnNewEnemyDirectly(oldName);
+    }
+
+    private IEnumerator RespawnAllyCoroutine(string oldName)
+    {
+        yield return new WaitForSeconds(_respawnDelay);
+        SpawnNewAllyDirectly(oldName);
+    }
+
+    private void SpawnNewEnemyDirectly(string enemyName)
+    {
+        if (_enemyPrefab == null || _enemySpawnPoints.Length == 0) return;
+
+        Transform point = _enemySpawnPoints[Random.Range(0, _enemySpawnPoints.Length)];
+        Vector3 spawnPosition = GetSafeNavMeshPosition(point.position);
+
+        GameObject newEnemy = Instantiate(_enemyPrefab, spawnPosition, point.rotation);
+        newEnemy.SetActive(true); 
+        newEnemy.name = enemyName;
+        newEnemy.tag = "Enemy"; 
+    }
+
+    private void SpawnNewAllyDirectly(string allyName)
+    {
+        if (_allyPrefab == null || _allySpawnPoints.Length == 0) return;
+
+        Transform point = _allySpawnPoints[Random.Range(0, _allySpawnPoints.Length)];
+        Vector3 spawnPosition = GetSafeNavMeshPosition(point.position);
+
+        GameObject newAlly = Instantiate(_allyPrefab, spawnPosition, point.rotation);
+        newAlly.SetActive(true); 
+        newAlly.name = allyName;
+        newAlly.tag = "Ally"; 
+    }
+
+    // ВОТ ЭТОТ МЕТОД, КОТОРЫЙ ТРЕБОВАЛА КОНСОЛЬ: Возрождение Игрока
+    public void RespawnPlayer(GameObject playerObject)
+    {
+        if (_allySpawnPoints.Length == 0 || playerObject == null) return;
+
+        Transform randomPoint = _allySpawnPoints[Random.Range(0, _allySpawnPoints.Length)];
+
+        CharacterController cc = playerObject.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false; // Отключаем на миг, чтобы сработал телепорт
+
+        playerObject.transform.position = randomPoint.position;
+        playerObject.transform.rotation = randomPoint.rotation;
+
+        if (cc != null) cc.enabled = true;
+        Debug.Log("[СПАВНЕР] Игрок успешно возрожден на базе союзников!");
+    }
+
+    private Vector3 GetSafeNavMeshPosition(Vector3 targetPos)
+    {
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(targetPos, out hit, 5.0f, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+        return targetPos;
     }
 }

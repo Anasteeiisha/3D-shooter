@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -5,127 +6,147 @@ using UnityEngine.AI;
 public class EnemyAI : MonoBehaviour
 {
     [Header("Настройки ИИ")]
-    [SerializeField] private float _attackRange = 15f;    // Дистанция, с которой враг начинает стрелять
-    [SerializeField] private float _fireRate = 1.0f;       // Перерыв между выстрелами (в секундах)
-    [SerializeField] private int _damage = 10;             // Урон игроку за один выстрел
+    [SerializeField] private float _attackRange = 25f; 
+    [SerializeField] private float _fireRate = 0.3f;   
+    [SerializeField] private int _damage = 10;         
 
-    [Header("Укрытия")]
-    [SerializeField] private float _hideHealthThreshold = 30f; // Если здоровье врага упадет ниже 30, он побежит прятаться
+    [Header("Звук выстрела бота")]
+    [SerializeField] private AudioClip _shootSound; 
 
     private NavMeshAgent _agent;
-    private Transform _playerTransform;
-    private PlayerHealthModel _playerHealth;
-    private EnemyHealth _enemyHealth;
+    private Transform _target; 
+    private AudioSource _audioSource; // Ссылка на встроенный звук
     private float _nextFireTime;
-    private bool _isHiding = false;
+    private bool _isDead = false;
 
     private void Start()
     {
         _agent = GetComponent<NavMeshAgent>();
-        _enemyHealth = GetComponent<EnemyHealth>();
-        
-        GameObject player = GameObject.Find("Player");
-        if (player != null)
+        _audioSource = GetComponent<AudioSource>(); // Находим аудиоресурс на боте
+
+        // Настройка 3D звука, чтобы он затихал на расстоянии
+        if (_audioSource != null)
         {
-            _playerTransform = player.transform;
-            _playerHealth = player.GetComponent<PlayerHealthModel>();
+            _audioSource.spatialBlend = 1.0f; // Делаем звук полностью 3D
+            _audioSource.maxDistance = 30f;   // Дистанция, на которой слышно врага
+            _audioSource.volume = 0.15f;      // Сразу делаем выстрелы тихими
+            _audioSource.playOnAwake = false;
         }
+
+        if (_agent != null)
+        {
+            _agent.speed = Random.Range(6.5f, 8.5f); 
+            _agent.stoppingDistance = 5f;            
+        }
+        StartCoroutine(LogicLoop());
     }
 
-    private void Update()
+    public void DisableAI()
     {
-        if (_playerTransform == null) return;
+        _isDead = true;
+        if (_agent != null && _agent.enabled && _agent.isOnNavMesh) _agent.isStopped = true;
+    }
 
-        // Проверяем здоровье врага. Если оно низкое — включаем режим паники и ищем укрытие
-        if (_enemyHealth != null && _enemyHealth.CurrentHealth <= _hideHealthThreshold && !_isHiding)
+    private IEnumerator LogicLoop()
+    {
+        yield return new WaitForSeconds(0.5f); // Даем игре полсекунды на запуск без стрельбы
+
+        while (!_isDead)
         {
-            StartCoroutine(FindAndMoveToCover());
-            return;
-        }
+            FindClosestTarget();
 
-        if (_isHiding) return; // Если уже прячется, обычную логику не выполняем
-
-        float distanceToPlayer = Vector3.Distance(transform.position, _playerTransform.position);
-
-        if (distanceToPlayer <= _attackRange)
-        {
-            // СОСТОЯНИЕ: АТАКА
-            _agent.isStopped = true; // Останавливаемся, чтобы прицелиться
-            LookAtPlayer();
-
-            if (Time.time >= _nextFireTime)
+            if (_target == null)
             {
-                ShootAtPlayer();
-                _nextFireTime = Time.time + _fireRate;
+                yield return new WaitForSeconds(0.3f);
+                continue;
             }
-        }
-        else
-        {
-            // СОСТОЯНИЕ: ПРЕСЛЕДОВАНИЕ
-            _agent.isStopped = false;
-            _agent.SetDestination(_playerTransform.position);
-        }
-    }
 
-    private void LookAtPlayer()
-    {
-        Vector3 direction = (_playerTransform.position - transform.position).normalized;
-        direction.y = 0; // Чтобы враг не наклонялся неестественно вверх/вниз
-        transform.rotation = Quaternion.LookRotation(direction);
-    }
+            float distance = Vector3.Distance(transform.position, _target.position);
 
-    private void ShootAtPlayer()
-    {
-        Debug.Log("[Враг] Сделал выстрел в игрока!");
-
-        // Проверяем, нет ли между врагом и игроком стены (контейнера)
-        RaycastHit hit;
-        if (Physics.Raycast(transform.position + Vector3.up, _playerTransform.position - transform.position, out hit, _attackRange))
-        {
-            if (hit.collider.gameObject.name == "Player" && _playerHealth != null)
+            if (_agent.enabled && _agent.isOnNavMesh)
             {
-                _playerHealth.TakeDamage(_damage); // Наносим урон игроку!
+                _agent.isStopped = false;
+                Vector3 offsetPoint = _target.position + transform.right * Random.Range(-4f, 4f);
+                _agent.SetDestination(offsetPoint);
             }
-            else
+
+            if (distance <= _attackRange)
             {
-                Debug.Log("[Враг] Пуля попала в контейнер/стену!");
-            }
-        }
-    }
+                LookAtTarget();
 
-    // ЛОГИКА УМНОГО УКРЫТИЯ (Прятки за контейнерами)
-    private System.Collections.IEnumerator FindAndMoveToCover()
-    {
-        _isHiding = true;
-        _agent.isStopped = false;
-        Debug.Log("[Враг] Мало здоровья! Ищу укрытие...");
-
-        // Ищем все объекты на карте, которые мы пометили как Static (наши контейнеры)
-        Collider[] obstacles = Physics.OverlapSphere(transform.position, 20f);
-        Vector3 bestCoverSpot = transform.position;
-        float bestDistance = 0f;
-
-        foreach (var obstacle in obstacles)
-        {
-            if (obstacle.gameObject.isStatic && obstacle.gameObject.name != "Plane")
-            {
-                // Считаем позицию ЗА контейнером (напротив игрока)
-                Vector3 hideDir = (obstacle.transform.position - _playerTransform.position).normalized;
-                Vector3 hidePos = obstacle.transform.position + hideDir * 2f;
-
-                // Выбираем самое дальнее и безопасное место от игрока
-                float dist = Vector3.Distance(hidePos, _playerTransform.position);
-                if (dist > bestDistance)
+                if (Time.time >= _nextFireTime)
                 {
-                    bestDistance = dist;
-                    bestCoverSpot = hidePos;
+                    Shoot();
+                    _nextFireTime = Time.time + _fireRate;
                 }
             }
+
+            yield return new WaitForSeconds(0.1f); 
+        }
+    }
+
+    private void LookAtTarget()
+    {
+        if (_target == null) return;
+        Vector3 dir = (_target.position - transform.position).normalized;
+        dir.y = 0;
+        if (dir != Vector3.zero) transform.rotation = Quaternion.LookRotation(dir);
+    }
+
+    private void FindClosestTarget()
+    {
+        GameObject[] allies = GameObject.FindGameObjectsWithTag("Ally");
+        GameObject player = GameObject.FindWithTag("Player");
+
+        float closestDist = Mathf.Infinity;
+        Transform closestTrans = null;
+
+        if (player != null)
+        {
+            closestDist = Vector3.Distance(transform.position, player.transform.position);
+            closestTrans = player.transform;
         }
 
-        // Даем команду автопилоту бежать за контейнер
-        _agent.SetDestination(bestCoverSpot);
-        yield return new WaitForSeconds(4f); // Прячется 4 секунды, потом снова может атаковать
-        _isHiding = false;
+        foreach (var ally in allies)
+        {
+            if (ally == null) continue;
+            NavMeshAgent allyAgent = ally.GetComponent<NavMeshAgent>();
+            if (allyAgent == null || !allyAgent.enabled) continue;
+
+            float dist = Vector3.Distance(transform.position, ally.transform.position);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestTrans = ally.transform;
+            }
+        }
+        _target = closestTrans;
+    }
+
+    private void Shoot()
+    {
+        if (_target == null) return;
+
+        // ИГРАЕМ ЗВУК БЕЗОПАСНО: Внутри самого бота без спавна клонов на сцене!
+        if (_audioSource != null && _shootSound != null)
+        {
+            _audioSource.PlayOneShot(_shootSound);
+        }
+
+        RaycastHit hit;
+        Vector3 start = transform.position + Vector3.up * 1.5f;
+        Vector3 direction = (_target.position - start).normalized;
+
+        if (Physics.Raycast(start, direction, out hit, _attackRange))
+        {
+            if (hit.collider.CompareTag("Player"))
+            {
+                hit.collider.GetComponentInParent<PlayerHealthModel>()?.TakeDamage(_damage);
+            }
+            else if (hit.collider.CompareTag("Ally"))
+            {
+                hit.collider.GetComponent<AllyHealth>()?.TakeDamage(_damage);
+            }
+        }
     }
 }
